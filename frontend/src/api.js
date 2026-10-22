@@ -1,11 +1,13 @@
 async function request(path, options = {}) {
   let res;
-  const apiUrl = import.meta.env.VITE_API_URL || '';
+  const apiUrl = import.meta.env.VITE_API_URL;
   const url = apiUrl ? `${apiUrl}/api${path}` : `/api${path}`;
   try {
     res = await fetch(url, options);
   } catch {
-    throw new Error("Cannot reach the AutoAnalytix server. Is the backend running on port 8000?");
+    throw new Error(apiUrl 
+      ? `Cannot reach the AutoAnalytix server at ${apiUrl}`
+      : "Cannot reach the AutoAnalytix server. Is the backend running on port 8000?");
   }
   if (!res.ok) {
     let detail = `Request failed (${res.status})`;
