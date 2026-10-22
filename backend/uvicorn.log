@@ -1,0 +1,38 @@
+INFO:     Started server process [21200]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52821 - "POST /api/sample/titanic HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52821 - "GET /api/data/763715ea9be4?limit=2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51329 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51330 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51331 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51332 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51333 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51335 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51336 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59452 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59453 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59454 - "GET /api/samples HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59455 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60508 - "POST /api/sample/iris HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56781 - "GET /api/cleaning/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63284 - "GET /api/chart/suggest/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63285 - "GET /api/stats/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63286 - "GET /api/data/480918ab46bf?limit=50&offset=0&original=current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63287 - "GET /api/profile/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55376 - "POST /api/cleaning/apply/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59783 - "GET /api/cleaning/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50355 - "GET /api/stats/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51721 - "GET /api/data/480918ab46bf?limit=50&offset=0&original=current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51722 - "GET /api/profile/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53370 - "POST /api/cleaning/apply/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55308 - "GET /api/cleaning/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55282 - "GET /api/stats/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63703 - "GET /api/data/480918ab46bf?limit=50&offset=0&original=current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63704 - "GET /api/profile/480918ab46bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58337 - "POST /api/chart HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49671 - "POST /api/chart HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65187 - "POST /api/chart HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52410 - "POST /api/chart HTTP/1.1" 200 OK
