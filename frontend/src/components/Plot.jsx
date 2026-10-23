@@ -5,7 +5,15 @@ export default function Plot({ figure, height = 380, innerRef, className, config
   const ref = useRef(null);
 
   useEffect(() => {
-    if (!ref.current || !figure) return;
+    if (!ref.current) return;
+
+    // Clean up any existing plot before creating a new one
+    if (ref.current) {
+      Plotly.purge(ref.current);
+    }
+
+    if (!figure) return;
+
     Plotly.react(
       ref.current,
       figure.data || [],
@@ -21,7 +29,10 @@ export default function Plot({ figure, height = 380, innerRef, className, config
     const resize = () => Plotly.Plots.resize(ref.current);
     const ro = new ResizeObserver(resize);
     ro.observe(ref.current);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      Plotly.purge(ref.current);
+    };
   }, [figure, height]);
 
   return <div ref={ref} className={className} style={{ width: "100%" }} />;

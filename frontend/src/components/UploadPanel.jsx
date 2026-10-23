@@ -29,7 +29,7 @@ export default function UploadPanel({ onLoaded }) {
     setBusy(true);
     try {
       const res = await api.upload(file);
-      onLoaded(res, false);
+      onLoaded(res);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -42,7 +42,7 @@ export default function UploadPanel({ onLoaded }) {
     setBusy(true);
     try {
       const res = await api.loadSample(id);
-      onLoaded({ ...res, name: id.charAt(0).toUpperCase() + id.slice(1) + " (sample)" }, true);
+      onLoaded({ ...res, name: id.charAt(0).toUpperCase() + id.slice(1) + " (sample)" });
     } catch (e) {
       setError(e.message);
     } finally {
