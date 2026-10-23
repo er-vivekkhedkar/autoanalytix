@@ -107,6 +107,16 @@ export default function CleaningPanel({ datasetId, meta, onMutated }) {
   const actionable = (recs || []).filter((r) => r.action.actionType !== "keep_outliers");
   const suggestions = (recs || []).filter((r) => r.action.actionType === "keep_outliers");
 
+  // Group actionable recommendations by issue type
+  const groupedByIssue = actionable.reduce((acc, r) => {
+    const issue = r.issue;
+    if (!acc[issue]) acc[issue] = [];
+    acc[issue].push(r);
+    return acc;
+  }, {});
+
+  const [expandedGroups, setExpandedGroups] = useState({});
+
   return (
     <Card id="cleaning">
       <CardHeader
@@ -118,7 +128,7 @@ export default function CleaningPanel({ datasetId, meta, onMutated }) {
             {meta?.canUndo && <Button variant="outline" size="sm" onClick={undo} disabled={busy}>↩ Undo last</Button>}
             {actionable.length > 0 && (
               <Button size="sm" onClick={() => apply(actionable.map((r) => r.id))} disabled={busy}>
-                {busy ? <Spinner className="text-white" /> : null} Apply all recommended ({actionable.length})
+                {busy ? <Spinner className="text-white" /> : null} Apply all ({actionable.length})
               </Button>
             )}
           </>
@@ -133,37 +143,65 @@ export default function CleaningPanel({ datasetId, meta, onMutated }) {
         ) : actionable.length === 0 && suggestions.length === 0 ? (
           <EmptyState title="No cleaning issues found 🎉" hint="This dataset already looks tidy — no missing values, duplicates or obvious outliers detected." />
         ) : (
-          <div className="space-y-2.5">
-            {actionable.map((r) => {
-              const im = issueMeta[r.issue] || {};
-              const chosen = decisions[r.id] ?? "recommended";
-              const canPickMethod = r.action.actionType === "impute" || r.action.actionType === "drop_column";
+          <div className="space-y-3">
+            {Object.entries(groupedByIssue).map(([issue, recs]) => {
+              const im = issueMeta[issue] || {};
+              const isExpanded = expandedGroups[issue] !== false;
               return (
-                <div key={r.id} className="rounded-xl border border-line px-4 py-3 transition-colors hover:border-blue-200">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={severityTone[r.severity]}>{im.icon} {im.label}</Badge>
-                    {r.column && <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">{r.column}</code>}
-                    <Badge tone="slate">{r.count} affected</Badge>
+                <div key={issue} className="rounded-xl border border-line overflow-hidden">
+                  <div
+                    className="flex cursor-pointer items-center gap-3 border-b border-line bg-slate-50/50 px-4 py-3 hover:bg-slate-50"
+                    onClick={() => setExpandedGroups((prev) => ({ ...prev, [issue]: !prev[issue] }))}
+                  >
+                    <Badge tone={severityTone[recs[0]?.severity]}>{im.icon} {im.label}</Badge>
+                    <span className="text-sm text-slate-600">{recs.length} item(s) affected</span>
                     <div className="ml-auto flex items-center gap-2">
-                      {canPickMethod ? (
-                        <Select className="w-40 py-1 text-xs" value={chosen} onChange={(e) => toggle(r.id, e.target.value)}>
-                          <option value="recommended">✨ Recommended</option>
-                          {methodChoices.filter(([, l]) => l)
-                            .filter(([v]) => v !== "drop_rows" || r.action.actionType === "impute")
-                            .filter(([v]) => v !== "drop_col" || true)
-                            .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </Select>
-                      ) : (
-                        <Button variant="ghost" size="sm" onClick={() => toggle(r.id, chosen === "keep" ? "recommended" : "keep")}>
-                          {chosen === "keep" ? "↩ Include" : "Skip"}
-                        </Button>
-                      )}
-                      <Button variant="secondary" size="sm" onClick={() => apply([r.id])} disabled={busy}>
-                        Apply
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); apply(recs.map((r) => r.id)); }}
+                        disabled={busy}
+                      >
+                        {busy ? <Spinner className="text-white" /> : null} Apply all ({recs.length})
                       </Button>
+                      <span className="text-slate-400">{isExpanded ? "▼" : "▶"}</span>
                     </div>
                   </div>
-                  <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-slate-600">{r.reason}</p>
+                  {isExpanded && (
+                    <div className="space-y-1 p-3">
+                      {recs.map((r) => {
+                        const chosen = decisions[r.id] ?? "recommended";
+                        const canPickMethod = r.action.actionType === "impute" || r.action.actionType === "drop_column";
+                        return (
+                          <div key={r.id} className="rounded-lg border border-line px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {r.column && <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">{r.column}</code>}
+                              <Badge tone="slate">{r.count} affected</Badge>
+                              <div className="ml-auto flex items-center gap-2">
+                                {canPickMethod ? (
+                                  <Select className="w-36 py-1 text-xs" value={chosen} onChange={(e) => toggle(r.id, e.target.value)}>
+                                    <option value="recommended">✨ Recommended</option>
+                                    {methodChoices.filter(([, l]) => l)
+                                      .filter(([v]) => v !== "drop_rows" || r.action.actionType === "impute")
+                                      .filter(([v]) => v !== "drop_col" || true)
+                                      .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                  </Select>
+                                ) : (
+                                  <Button variant="ghost" size="sm" onClick={() => toggle(r.id, chosen === "keep" ? "recommended" : "keep")}>
+                                    {chosen === "keep" ? "↩ Include" : "Skip"}
+                                  </Button>
+                                )}
+                                <Button variant="secondary" size="sm" onClick={() => apply([r.id])} disabled={busy}>
+                                  Apply
+                                </Button>
+                              </div>
+                            </div>
+                            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600">{r.reason}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
