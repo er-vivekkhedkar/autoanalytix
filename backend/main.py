@@ -20,11 +20,15 @@ import report as report_mod
 # Redis for persistent storage
 import redis
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+USE_KV = False
+kv = None
 try:
     kv = redis.from_url(REDIS_URL, decode_responses=True)
     kv.ping()
     USE_KV = True
-except Exception:
+    print(f"Connected to Redis: {REDIS_URL}")
+except Exception as e:
+    print(f"Failed to connect to Redis: {e}. Using in-memory storage.")
     USE_KV = False
     kv = None
 
@@ -64,7 +68,7 @@ def _serialize_session(session: dict) -> str:
         "name": session["name"],
         "original": engine.safe_records(session["original"]),
         "df": engine.safe_records(session["df"]),
-        "history": [{"label": h["label"], "rows": h["rows"]} for h in session["history"]],
+        "history": [{"label": h["label"], "rows": h["rows"], "df": engine.safe_records(h["df"])} for h in session["history"]],
         "applied": session["applied"],
     }, default=str)
 
@@ -77,7 +81,7 @@ def _deserialize_session(data: str) -> dict:
         "name": obj["name"],
         "original": pd.DataFrame(obj["original"]),
         "df": pd.DataFrame(obj["df"]),
-        "history": obj["history"],
+        "history": [{"label": h["label"], "rows": h["rows"], "df": pd.DataFrame(h["df"])} for h in obj["history"]],
         "applied": obj["applied"],
     }
 
@@ -243,7 +247,7 @@ class ReportIn(BaseModel):
 # ------------------------------------------------------------------ basic
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "redis": USE_KV, "redis_url": REDIS_URL if USE_KV else "not connected"}
 
 
 @app.post("/api/upload")
