@@ -39,6 +39,7 @@ export const api = {
   listSamples: () => request("/samples").then((r) => r.json()),
   loadSample: (id) => request(`/sample/${id}`, { method: "POST" }).then((r) => r.json()),
   dataset: (id) => request(`/dataset/${id}`).then((r) => r.json()),
+  deleteDataset: (id) => request(`/dataset/${id}`, { method: "DELETE" }).then((r) => r.json()),
   profile: (id) => request(`/profile/${id}`).then((r) => r.json()),
   cleaning: (id) => request(`/cleaning/${id}`).then((r) => r.json()),
   apply: (id, actions) => request(`/cleaning/apply/${id}`, jsonBody({ actions })).then((r) => r.json()),

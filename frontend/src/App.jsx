@@ -18,6 +18,7 @@ export default function App() {
   const [mutateCounter, setMutateCounter] = useState(0);
   const [toast, setToast] = useState(null); // {kind, text}
   const [offline, setOffline] = useState(false);
+  const [isSample, setIsSample] = useState(false);
   const chartRefs = useRef({});
 
   useEffect(() => {
@@ -35,8 +36,9 @@ export default function App() {
     setTimeout(() => setToast(null), 5000);
   }
 
-  function onLoaded(res) {
+  function onLoaded(res, sample = false) {
     setDatasetId(res.datasetId || res.id);
+    setIsSample(sample);
     setMutateCounter((c) => c + 1);
     setCharts([]);
     showNote(`Dataset loaded — profiled automatically.`);
@@ -53,11 +55,19 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  function reset() {
+  async function reset() {
+    if (datasetId && !isSample) {
+      try {
+        await api.deleteDataset(datasetId);
+      } catch (e) {
+        console.error("Failed to delete dataset:", e);
+      }
+    }
     setDatasetId(null);
     setMeta(null);
     setProfile(null);
     setCharts([]);
+    setIsSample(false);
     document.getElementById("upload")?.scrollIntoView({ behavior: "smooth" });
   }
 
