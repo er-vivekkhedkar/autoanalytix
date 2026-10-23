@@ -8,8 +8,10 @@ export default function Plot({ figure, height = 380, innerRef, className, config
     if (!ref.current) return;
 
     // Clean up any existing plot before creating a new one
-    if (ref.current) {
+    try {
       Plotly.purge(ref.current);
+    } catch (e) {
+      // Ignore if no plot exists yet
     }
 
     if (!figure) return;
@@ -31,7 +33,11 @@ export default function Plot({ figure, height = 380, innerRef, className, config
     ro.observe(ref.current);
     return () => {
       ro.disconnect();
-      Plotly.purge(ref.current);
+      try {
+        Plotly.purge(ref.current);
+      } catch (e) {
+        // Ignore if element is already gone
+      }
     };
   }, [figure, height]);
 
