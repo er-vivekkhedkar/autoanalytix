@@ -2,18 +2,15 @@
 
 ## Backend Deployment (Vercel)
 
-1. **Set up Vercel KV (Redis)**:
-   - Go to your Vercel dashboard
-   - Navigate to your project → Storage → Create Database
-   - Select KV (Redis) and create it
-   - Copy the KV_REST_API_URL and KV_REST_API_TOKEN
+1. **Set up Redis**:
+   - Use an external Redis service (e.g., Redis Cloud, Upstash, or your own Redis instance)
+   - Get your Redis connection URL (e.g., `redis://default:password@host:port`)
 
 2. **Deploy the backend to Vercel**:
    - Create a new project in Vercel
    - Connect to the `backend` directory
-   - Add environment variables in project settings:
-     - `KV_REST_API_URL`: Your KV REST API URL
-     - `KV_REST_API_TOKEN`: Your KV REST API token
+   - Add environment variable in project settings:
+     - `REDIS_URL`: Your Redis connection URL
    - Deploy
 
 3. After deployment, note your backend URL (e.g., `https://autoanalytix-backend.vercel.app`)

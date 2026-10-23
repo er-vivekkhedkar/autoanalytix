@@ -17,12 +17,14 @@ from pydantic import BaseModel
 import engine
 import report as report_mod
 
-# Vercel KV for persistent storage
+# Redis for persistent storage
+import redis
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 try:
-    from vercel_kv import get_kv
-    kv = get_kv()
+    kv = redis.from_url(REDIS_URL, decode_responses=True)
+    kv.ping()
     USE_KV = True
-except ImportError:
+except Exception:
     USE_KV = False
     kv = None
 
@@ -81,9 +83,9 @@ def _deserialize_session(data: str) -> dict:
 
 
 async def _get_session(dataset_id: str) -> dict:
-    """Get session from KV or in-memory DATASTORE."""
+    """Get session from Redis or in-memory DATASTORE."""
     if USE_KV:
-        data = await kv.get(f"dataset:{dataset_id}")
+        data = kv.get(f"dataset:{dataset_id}")
         if data is None:
             raise HTTPException(404, "Dataset not found — it may have been reset by a server restart. Please re-upload.")
         return _deserialize_session(data)
@@ -94,11 +96,11 @@ async def _get_session(dataset_id: str) -> dict:
 
 
 async def _save_session(dataset_id: str, session: dict):
-    """Save session to KV or in-memory DATASTORE."""
+    """Save session to Redis or in-memory DATASTORE."""
     if USE_KV:
-        await kv.set(f"dataset:{dataset_id}", _serialize_session(session))
+        kv.set(f"dataset:{dataset_id}", _serialize_session(session))
         # Set expiration to 24 hours
-        await kv.expire(f"dataset:{dataset_id}", 86400)
+        kv.expire(f"dataset:{dataset_id}", 86400)
     else:
         DATASTORE[dataset_id] = session
 
@@ -284,7 +286,7 @@ async def dataset_meta(dataset_id: str):
 async def delete_dataset(dataset_id: str):
     await _get_session(dataset_id)
     if USE_KV:
-        await kv.delete(f"dataset:{dataset_id}")
+        kv.delete(f"dataset:{dataset_id}")
     else:
         DATASTORE.pop(dataset_id, None)
     return {"ok": True}
