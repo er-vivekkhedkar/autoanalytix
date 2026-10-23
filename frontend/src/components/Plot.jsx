@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import Plotly from "plotly.js-dist-min";
 
-export default function Plot({ figure, height = 380, innerRef, className, config = {} }) {
+export default function Plot({ figure, height = 380, innerRef, className,config = {} }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -28,7 +28,13 @@ export default function Plot({ figure, height = 380, innerRef, className, config
       }
     );
     if (innerRef) innerRef(ref.current);
-    const resize = () => Plotly.Plots.resize(ref.current);
+    const resize = () => {
+      try {
+        Plotly.Plots.resize(ref.current);
+      } catch (e) {
+        // Ignore if element is already gone
+      }
+    };
     const ro = new ResizeObserver(resize);
     ro.observe(ref.current);
     return () => {

@@ -213,6 +213,7 @@ export default function ChartBuilder({ datasetId, columns, mutateCounter, onChar
                       </div>
                     </div>
                     <Plot
+                      key={f.id}
                       figure={f.figure}
                       height={400}
                       innerRef={(n) => { if (chartRefs) chartRefs.current[f.id] = n; }}
