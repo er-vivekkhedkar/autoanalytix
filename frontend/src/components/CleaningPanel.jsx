@@ -51,6 +51,7 @@ export default function CleaningPanel({ datasetId, meta, onMutated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const refresh = () => {
     if (!datasetId) return;
@@ -114,8 +115,6 @@ export default function CleaningPanel({ datasetId, meta, onMutated }) {
     acc[issue].push(r);
     return acc;
   }, {});
-
-  const [expandedGroups, setExpandedGroups] = useState({});
 
   return (
     <Card id="cleaning">
