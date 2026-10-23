@@ -17,6 +17,15 @@ from pydantic import BaseModel
 import engine
 import report as report_mod
 
+# Vercel KV for persistent storage
+try:
+    from vercel_kv import get_kv
+    kv = get_kv()
+    USE_KV = True
+except ImportError:
+    USE_KV = False
+    kv = None
+
 MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB
 MAX_ROWS = engine.MAX_ROWS
 MAX_COLS = engine.MAX_COLS
@@ -46,15 +55,63 @@ app.add_middleware(
 
 
 # ------------------------------------------------------------------ helpers
+def _serialize_session(session: dict) -> str:
+    """Serialize session data for KV storage."""
+    return json.dumps({
+        "id": session["id"],
+        "name": session["name"],
+        "original": engine.safe_records(session["original"]),
+        "df": engine.safe_records(session["df"]),
+        "history": [{"label": h["label"], "rows": h["rows"]} for h in session["history"]],
+        "applied": session["applied"],
+    }, default=str)
+
+
+def _deserialize_session(data: str) -> dict:
+    """Deserialize session data from KV storage."""
+    obj = json.loads(data)
+    return {
+        "id": obj["id"],
+        "name": obj["name"],
+        "original": pd.DataFrame(obj["original"]),
+        "df": pd.DataFrame(obj["df"]),
+        "history": obj["history"],
+        "applied": obj["applied"],
+    }
+
+
+async def _get_session(dataset_id: str) -> dict:
+    """Get session from KV or in-memory DATASTORE."""
+    if USE_KV:
+        data = await kv.get(f"dataset:{dataset_id}")
+        if data is None:
+            raise HTTPException(404, "Dataset not found — it may have been reset by a server restart. Please re-upload.")
+        return _deserialize_session(data)
+    else:
+        if dataset_id not in DATASTORE:
+            raise HTTPException(404, "Dataset not found — it may have been reset by a server restart. Please re-upload.")
+        return DATASTORE[dataset_id]
+
+
+async def _save_session(dataset_id: str, session: dict):
+    """Save session to KV or in-memory DATASTORE."""
+    if USE_KV:
+        await kv.set(f"dataset:{dataset_id}", _serialize_session(session))
+        # Set expiration to 24 hours
+        await kv.expire(f"dataset:{dataset_id}", 86400)
+    else:
+        DATASTORE[dataset_id] = session
+
+
 def _session(dataset_id: str, check=True):
     if dataset_id not in DATASTORE:
         raise HTTPException(404, "Dataset not found — it may have been reset by a server restart. Please re-upload.")
     return DATASTORE[dataset_id]
 
 
-def _new_session(df: pd.DataFrame, name: str):
+async def _new_session(df: pd.DataFrame, name: str):
     dataset_id = uuid.uuid4().hex[:12]
-    DATASTORE[dataset_id] = {
+    session = {
         "id": dataset_id,
         "name": name,
         "original": df.copy(),
@@ -62,6 +119,7 @@ def _new_session(df: pd.DataFrame, name: str):
         "history": [],  # [{label, df, rows}]
         "applied": [],  # change descriptions
     }
+    await _save_session(dataset_id, session)
     return dataset_id
 
 
@@ -190,8 +248,8 @@ def health():
 async def upload(file: UploadFile = File(...)):
     raw = await file.read()
     df = parse_upload(file.filename or "data.csv", raw)
-    dsid = _new_session(df, os.path.basename(file.filename or "upload"))
-    s = _session(dsid)
+    dsid = await _new_session(df, os.path.basename(file.filename or "upload"))
+    s = await _get_session(dsid)
     return {"datasetId": dsid, **_dataset_meta(s)}
 
 
@@ -201,7 +259,7 @@ def list_samples():
 
 
 @app.post("/api/sample/{sample_id}")
-def load_sample(sample_id: str):
+async def load_sample(sample_id: str):
     if sample_id not in SAMPLES:
         raise HTTPException(404, "Unknown sample dataset.")
     label, fname = SAMPLES[sample_id]
@@ -209,29 +267,33 @@ def load_sample(sample_id: str):
     if not os.path.exists(path):
         raise HTTPException(500, f"Sample file missing on server: {fname}")
     df = pd.read_csv(path)
-    dsid = _new_session(df, label)
-    return {"datasetId": dsid, **_dataset_meta(_session(dsid))}
+    dsid = await _new_session(df, label)
+    s = await _get_session(dsid)
+    return {"datasetId": dsid, **_dataset_meta(s)}
 
 
 @app.get("/api/dataset/{dataset_id}")
-def dataset_meta(dataset_id: str):
-    s = _session(dataset_id)
+async def dataset_meta(dataset_id: str):
+    s = await _get_session(dataset_id)
     meta = _dataset_meta(s)
     meta["columns"] = engine.profile(s["df"])["columns"]
     return meta
 
 
 @app.delete("/api/dataset/{dataset_id}")
-def delete_dataset(dataset_id: str):
-    _session(dataset_id)
-    DATASTORE.pop(dataset_id, None)
+async def delete_dataset(dataset_id: str):
+    await _get_session(dataset_id)
+    if USE_KV:
+        await kv.delete(f"dataset:{dataset_id}")
+    else:
+        DATASTORE.pop(dataset_id, None)
     return {"ok": True}
 
 
 # ------------------------------------------------------------------ profiling
 @app.get("/api/profile/{dataset_id}")
-def get_profile(dataset_id: str):
-    s = _session(dataset_id)
+async def get_profile(dataset_id: str):
+    s = await _get_session(dataset_id)
     return {**_dataset_meta(s), "profile": engine.profile(s["df"]),
             "original": {"rows": len(s["original"]), "cols": s["original"].shape[1],
                          "missingCells": int(s["original"].isna().sum().sum()),
@@ -239,16 +301,16 @@ def get_profile(dataset_id: str):
 
 
 @app.get("/api/stats/{dataset_id}")
-def get_stats(dataset_id: str):
-    s = _session(dataset_id)
+async def get_stats(dataset_id: str):
+    s = await _get_session(dataset_id)
     return {"numeric": engine.descriptive_stats(s["df"]),
             "frequencies": engine.frequency_tables(s["df"]),
             "correlations": engine.correlations(s["df"])}
 
 
 @app.post("/api/stats/regression")
-def do_regression(body: RegressionIn):
-    s = _session(body.datasetId)
+async def do_regression(body: RegressionIn):
+    s = await _get_session(body.datasetId)
     if body.x not in s["df"].columns or body.y not in s["df"].columns:
         raise HTTPException(400, "X and Y columns must exist in the dataset.")
     try:
@@ -259,16 +321,16 @@ def do_regression(body: RegressionIn):
 
 # ------------------------------------------------------------------ cleaning
 @app.get("/api/cleaning/{dataset_id}")
-def cleaning_recs(dataset_id: str):
-    s = _session(dataset_id)
+async def cleaning_recs(dataset_id: str):
+    s = await _get_session(dataset_id)
     return {"recommendations": engine.recommendations(s["df"]),
             "history": [{"label": h["label"], "rows": h["rows"]} for h in reversed(s["history"][::-1][-25:])],
             "applied": s["applied"][-25:]}
 
 
 @app.post("/api/cleaning/apply/{dataset_id}")
-def cleaning_apply(dataset_id: str, body: ApplyIn):
-    s = _session(dataset_id)
+async def cleaning_apply(dataset_id: str, body: ApplyIn):
+    s = await _get_session(dataset_id)
     if not body.actions:
         raise HTTPException(400, "No actions provided.")
     s["history"].append({"label": f"{len(body.actions)} action(s) applied",
@@ -284,25 +346,27 @@ def cleaning_apply(dataset_id: str, body: ApplyIn):
         except (ValueError, KeyError) as e:
             raise HTTPException(400, f"Action failed: {e}")
     s["applied"] = (s["applied"] + changes)[-25:]
+    await _save_session(dataset_id, s)
     return {**_dataset_meta(s), "changes": changes}
 
 
 @app.post("/api/cleaning/undo/{dataset_id}")
-def cleaning_undo(dataset_id: str):
-    s = _session(dataset_id)
+async def cleaning_undo(dataset_id: str):
+    s = await _get_session(dataset_id)
     if not s["history"]:
         raise HTTPException(400, "Nothing to undo.")
     prev = s["history"].pop()
     s["df"] = prev["df"]
     if prev.get("changes") and s["applied"]:
         s["applied"] = s["applied"][:-min(prev["changes"], len(s["applied"]))]
+    await _save_session(dataset_id, s)
     return {**_dataset_meta(s), "undone": "Reverted the last cleaning step. The previous dataset state was restored."}
 
 
 # ------------------------------------------------------------------ data preview
 @app.get("/api/data/{dataset_id}")
-def preview_data(dataset_id: str, limit: int = 50, offset: int = 0, original: str = "current"):
-    s = _session(dataset_id)
+async def preview_data(dataset_id: str, limit: int = 50, offset: int = 0, original: str = "current"):
+    s = await _get_session(dataset_id)
     df = s["original"] if original == "original" else s["df"]
     limit = max(1, min(limit, 500))
     return {
@@ -316,15 +380,15 @@ def preview_data(dataset_id: str, limit: int = 50, offset: int = 0, original: st
 
 # ------------------------------------------------------------------ charts
 @app.get("/api/chart/suggest/{dataset_id}")
-def chart_suggest(dataset_id: str):
-    s = _session(dataset_id)
+async def chart_suggest(dataset_id: str):
+    s = await _get_session(dataset_id)
     return {"suggestions": engine.suggest_charts(s["df"]),
             "chartTypes": engine.CHART_TYPES}
 
 
 @app.post("/api/chart")
-def chart(body: ChartIn):
-    s = _session(body.datasetId)
+async def chart(body: ChartIn):
+    s = await _get_session(body.datasetId)
     df = engine.filter_df(s["df"], body.filters)
     if df.empty:
         raise HTTPException(400, "The filter conditions matched no rows. Relax the filters.")
@@ -341,8 +405,8 @@ def chart(body: ChartIn):
 
 # ------------------------------------------------------------------ exports
 @app.get("/api/export/{dataset_id}/{kind}")
-def export_data(dataset_id: str, kind: str):
-    s = _session(dataset_id)
+async def export_data(dataset_id: str, kind: str):
+    s = await _get_session(dataset_id)
     df = s["df"]
     base = os.path.splitext(s["name"])[0] or "cleaned"
     if kind == "csv":
@@ -358,8 +422,8 @@ def export_data(dataset_id: str, kind: str):
 
 
 @app.post("/api/export/report")
-def export_report(body: ReportIn):
-    s = _session(body.datasetId)
+async def export_report(body: ReportIn):
+    s = await _get_session(body.datasetId)
     charts_meta = [c.name for c in (body.charts or [])]
     try:
         pdf = report_mod.build_pdf(s["df"], s["name"], s["applied"], charts_meta)
@@ -371,8 +435,8 @@ def export_report(body: ReportIn):
 
 
 @app.post("/api/export/zip")
-def export_zip(body: ReportIn):
-    s = _session(body.datasetId)
+async def export_zip(body: ReportIn):
+    s = await _get_session(body.datasetId)
     df = s["df"]
     base = os.path.splitext(s["name"])[0] or "cleaned"
     z = io.BytesIO()

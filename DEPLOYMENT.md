@@ -2,12 +2,21 @@
 
 ## Backend Deployment (Vercel)
 
-1. Deploy the backend to Vercel:
+1. **Set up Vercel KV (Redis)**:
+   - Go to your Vercel dashboard
+   - Navigate to your project → Storage → Create Database
+   - Select KV (Redis) and create it
+   - Copy the KV_REST_API_URL and KV_REST_API_TOKEN
+
+2. **Deploy the backend to Vercel**:
    - Create a new project in Vercel
    - Connect to the `backend` directory
-   - Vercel will automatically detect Python and deploy using `vercel.json`
+   - Add environment variables in project settings:
+     - `KV_REST_API_URL`: Your KV REST API URL
+     - `KV_REST_API_TOKEN`: Your KV REST API token
+   - Deploy
 
-2. After deployment, note your backend URL (e.g., `https://autoanalytix-backend.vercel.app`)
+3. After deployment, note your backend URL (e.g., `https://autoanalytix-backend.vercel.app`)
 
 ## Frontend Deployment (Vercel)
 
@@ -30,6 +39,6 @@
 
 ## Local Development
 
-For local development, the frontend uses a proxy (configured in `vite.config.js`) to route API requests to the backend running on `http://127.0.0.1:8000`.
+For local development, the backend uses in-memory storage (no KV needed). The frontend uses a proxy (configured in `vite.config.js`) to route API requests to the backend running on `http://127.0.0.1:8000`.
 
 No environment variables needed for local development.
